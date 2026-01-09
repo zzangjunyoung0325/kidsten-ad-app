@@ -1,144 +1,103 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 
-# 1. HTML 레퍼런스 감성 이식 (다크 모드 및 카드 레이아웃)
-st.set_page_config(page_title="KidsTen Growth Intelligence", layout="wide")
+# 1. 페이지 설정 및 심플 테마 (Professional Light)
+st.set_page_config(page_title="KidsTen Ad Intelligence", layout="wide")
 
+# 최소한의 디자인 포인트만 적용 (가독성 중심)
 st.markdown("""
     <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    
-    /* HTML 레퍼런스 테마 적용 (#0f172a) */
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-        background-color: #0f172a !important;
-        font-family: 'Pretendard', sans-serif !important;
-        color: #f8fafc !important;
+    .main { background-color: #ffffff; }
+    div[data-testid="stMetric"] {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 15px;
+        border-radius: 10px;
     }
-    
-    [data-testid="stSidebar"] {
-        background-color: #1e293b !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    /* 카드 디자인 (Glassmorphism) */
-    .report-card {
-        background: rgba(30, 41, 59, 0.7);
-        padding: 24px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    
-    .m-label { color: #94a3b8; font-size: 14px; margin-bottom: 8px; font-weight: 500; }
-    .m-value { font-size: 32px; font-weight: 700; color: #ffffff; }
-    .m-sub { font-size: 12px; color: #10b981; margin-top: 5px; font-weight: 600; }
-    
-    h1, h2, h3, h4, p, span { color: #f8fafc !important; }
-    .stDataFrame { border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; }
+    .stDataFrame { border: 1px solid #e2e8f0; border-radius: 10px; }
+    h1, h2, h3 { color: #0f172a; font-weight: 700; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 통합 데이터 로더 (에러 완전 차단 엔진)
+# 2. 강력한 데이터 통합 엔진 (중복 완전 박멸)
 URL_1 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=75240363"
 URL_2 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=481757610"
 
 @st.cache_data
-def load_and_merge_data():
+def load_and_clean_data():
     rename_map = {
         '캠페인 시작일': '날짜', '캠페인 이름': '캠페인명', 
-        '광고비(원)': '광고비', '총 전환 매출액 (14일)(원)': '총 전환매출액(14일)',
-        '클릭수': '클릭수', '노출수': '노출수'
+        '광고비(원)': '광고비', '총 전환 매출액 (14일)(원)': '총 전환매출액(14일)'
     }
     
     all_dfs = []
-    
-    def fetch_and_clean(url, name):
+    for url, name in [(URL_1, "RawData_1"), (URL_2, "RawData_2")]:
         try:
-            df = pd.read_csv(url)
-            # [핵심] 1. 중복 컬럼 제거 및 인덱스 초기화 (InvalidIndexError 방지)
-            df = df.loc[:, ~df.columns.duplicated()].copy()
-            df = df.reset_index(drop=True)
-            
-            # [핵심] 2. 항목명 번역 및 번역 후 중복 다시 체크
-            df = df.rename(columns=rename_map)
-            df = df.loc[:, ~df.columns.duplicated()].copy()
-            
-            # [핵심] 3. 숫자 데이터 정제
-            num_cols = ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']
-            for col in num_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-            return df
-        except Exception as e:
-            st.error(f"❌ {name} 로드 실패: {e}")
-            return None
-
-    d1 = fetch_and_clean(URL_1, "RawData_1")
-    d2 = fetch_and_clean(URL_2, "RawData_2")
-
-    if d1 is not None: all_dfs.append(d1)
-    if d2 is not None: all_dfs.append(d2)
+            temp_df = pd.read_csv(url)
+            # [핵심] 1. 중복 컬럼명 즉시 제거
+            temp_df = temp_df.loc[:, ~temp_df.columns.duplicated()].copy()
+            # [핵심] 2. 항목명 번역
+            temp_df = temp_df.rename(columns=rename_map)
+            # [핵심] 3. 번역 후 중복 다시 체크 및 인덱스 초기화
+            temp_df = temp_df.loc[:, ~temp_df.columns.duplicated()].copy()
+            temp_df = temp_df.reset_index(drop=True)
+            all_dfs.append(temp_df)
+        except: continue
     
     if not all_dfs: return None
     
-    # [핵심] 4. 최종 병합 시 인덱스 무시
+    # [핵심] 4. 안전한 병합
     full_df = pd.concat(all_dfs, axis=0, ignore_index=True)
+    
+    # 날짜 및 숫자 정제
     full_df['날짜'] = pd.to_datetime(full_df['날짜'], errors='coerce')
-    full_df['ROAS'] = (full_df['총 전환매출액(14일)'] / full_df['광고비'] * 100).replace([float('inf')], 0).fillna(0)
+    num_cols = ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']
+    for col in num_cols:
+        if col in full_df.columns:
+            full_df[col] = pd.to_numeric(full_df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
     
     return full_df
 
-# 3. 메인 분석 엔진 실행
-df = load_and_merge_data()
+df = load_and_clean_data()
 
 if df is not None:
-    # --- 사이드바 및 프로필 ---
+    # --- 사이드바: 심플 필터 ---
     with st.sidebar:
-        st.markdown("### 🏢 KidsTen Insight")
+        st.title("🏢 KidsTen Dashboard")
         if '캠페인명' in df.columns:
             camps = sorted([x for x in df['캠페인명'].unique() if pd.notna(x)])
-            sel_camps = st.multiselect("분석 캠페인 선택", camps, default=camps)
+            sel_camps = st.multiselect("캠페인 선택", camps, default=camps)
             f_df = df[df['캠페인명'].isin(sel_camps)]
         else: f_df = df
         
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown(f"""
-            <div style="padding:15px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:10px;">
-                <p style="font-size:12px; color:#94a3b8; margin:0;">Analysis Specialist</p>
-                <p style="font-size:16px; font-weight:700; margin:0; color:#ffffff;">장준영 팀장</p>
-                <p style="font-size:11px; color:#3b82f6; margin:0;">KidsTen Growth Lead</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.divider()
+        st.info(f"**장준영 팀장**\nGrowth Strategy Lead")
 
-    # --- 메인 대시보드 (v14.0) ---
-    st.markdown("# 🚀 KidsTen Ad Intelligence Cockpit")
-    st.markdown("<p style='color:#94a3b8;'>통합 데이터 분석 및 전략 보고서</p>", unsafe_allow_html=True)
+    # --- 메인 대시보드 (v16.0) ---
+    st.title("🚀 쿠팡 통합 광고 성과 분석")
+    st.markdown("전체 캠페인 성과 및 일별 추이를 분석합니다.")
     
-    # KPI Grid (HTML 레이아웃 재현)
-    k1, k2, k3, k4 = st.columns(4)
-    with k1: st.markdown(f'<div class="report-card"><p class="m-label">총 집행 광고비</p><p class="m-value">{f_df["광고비"].sum():,.0f}</p><p class="m-sub">Spend Total</p></div>', unsafe_allow_html=True)
-    with k2: st.markdown(f'<div class="report-card"><p class="m-label">총 광고 매출액</p><p class="m-value">{f_df["총 전환매출액(14일)"].sum():,.0f}</p><p class="m-sub">Revenue Total</p></div>', unsafe_allow_html=True)
+    # KPI Grid (Simple & Clean)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("💰 총 광고비", f"{f_df['광고비'].sum():,.0f}원")
+    m2.metric("📈 총 매출액", f"{f_df['총 전환매출액(14일)'].sum():,.0f}원")
     roas = (f_df['총 전환매출액(14일)'].sum() / f_df['광고비'].sum() * 100) if f_df['광고비'].sum() > 0 else 0
-    with k3: st.markdown(f'<div class="report-card"><p class="m-label">평균 ROAS</p><p class="m-value" style="color:#3b82f6;">{roas:.1f}%</p><p class="m-sub">Efficiency Rate</p></div>', unsafe_allow_html=True)
-    with k4: st.markdown(f'<div class="report-card"><p class="m-label">분석 데이터</p><p class="m-value">{len(f_df):,}건</p><p class="m-sub">Raw Records</p></div>', unsafe_allow_html=True)
+    m3.metric("🎯 평균 ROAS", f"{roas:.1f}%")
+    m4.metric("📊 데이터 수", f"{len(f_df):,}건")
 
-    # 트렌드 차트
-    st.markdown("<div class='report-card'>", unsafe_allow_html=True)
+    # 성과 차트 (Professional White Theme)
     st.subheader("🗓️ 일별 광고비 및 매출 추이")
     trend = f_df.groupby('날짜')[['광고비', '총 전환매출액(14일)']].sum().reset_index()
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=trend['날짜'], y=trend['총 전환매출액(14일)'], name='Sales', fill='tozeroy', line=dict(color='#3b82f6', width=4)))
-    fig.add_trace(go.Scatter(x=trend['날짜'], y=trend['광고비'], name='Spend', line=dict(color='#ef4444', width=2)))
-    fig.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400, margin=dict(l=0,r=0,t=20,b=0))
+    fig = px.line(trend, x='날짜', y=['광고비', '총 전환매출액(14일)'], 
+                  labels={'value': '금액(원)', 'variable': '항목'},
+                  color_discrete_sequence=['#ef4444', '#1e40af'])
+    fig.update_layout(template='plotly_white', height=450)
     st.plotly_chart(fig, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    # 데이터 상세 리스트
-    st.subheader("📋 통합 실시간 퍼포먼스 DB")
+    # 데이터 상세 보기
+    st.subheader("📋 통합 성과 상세 데이터")
     st.dataframe(f_df.sort_values('날짜', ascending=False), use_container_width=True)
 
 else:
-    st.warning("데이터 정제 및 로딩 중입니다. 구글 시트 공유 설정을 확인해 주세요.")
+    st.error("데이터를 로드할 수 없습니다. 시트 주소와 공유 설정을 확인해 주세요.")
