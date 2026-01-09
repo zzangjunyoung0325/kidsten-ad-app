@@ -1,103 +1,152 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
-# 1. 페이지 설정 및 심플 테마 (Professional Light)
-st.set_page_config(page_title="KidsTen Ad Intelligence", layout="wide")
+# 1. 하이엔드 비즈니스 UI 디자인 (CSS)
+st.set_page_config(page_title="KidsTen Growth Intelligence", layout="wide")
 
-# 최소한의 디자인 포인트만 적용 (가독성 중심)
 st.markdown("""
     <style>
-    .main { background-color: #ffffff; }
-    div[data-testid="stMetric"] {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 15px;
-        border-radius: 10px;
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * { font-family: 'Pretendard', sans-serif !important; }
+    
+    /* 배경 및 레이아웃 */
+    .main { background-color: #f1f5f9; }
+    
+    /* 상단 전략 헤더 */
+    .strategy-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 20px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
     }
-    .stDataFrame { border: 1px solid #e2e8f0; border-radius: 10px; }
-    h1, h2, h3 { color: #0f172a; font-weight: 700; }
+    
+    /* 프리미엄 카드 디자인 */
+    .stat-card {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+    .stat-label { color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+    .stat-value { color: #0f172a; font-size: 28px; font-weight: 800; }
+    
+    /* 배지 스타일 */
+    .badge {
+        padding: 4px 12px;
+        border-radius: 50px;
+        font-size: 12px;
+        font-weight: 700;
+        margin-top: 10px;
+        display: inline-block;
+    }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 강력한 데이터 통합 엔진 (중복 완전 박멸)
+# 2. 강력한 데이터 통합 엔진 (Error-Free)
 URL_1 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=75240363"
 URL_2 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=481757610"
 
 @st.cache_data
-def load_and_clean_data():
-    rename_map = {
-        '캠페인 시작일': '날짜', '캠페인 이름': '캠페인명', 
-        '광고비(원)': '광고비', '총 전환 매출액 (14일)(원)': '총 전환매출액(14일)'
-    }
-    
-    all_dfs = []
-    for url, name in [(URL_1, "RawData_1"), (URL_2, "RawData_2")]:
+def load_and_sync_data():
+    map_cols = {'캠페인 시작일': '날짜', '캠페인 이름': '캠페인명', '광고비(원)': '광고비', '총 전환 매출액 (14일)(원)': '총 전환매출액(14일)'}
+    dfs = []
+    for url, name in [(URL_1, "S1"), (URL_2, "S2")]:
         try:
-            temp_df = pd.read_csv(url)
-            # [핵심] 1. 중복 컬럼명 즉시 제거
-            temp_df = temp_df.loc[:, ~temp_df.columns.duplicated()].copy()
-            # [핵심] 2. 항목명 번역
-            temp_df = temp_df.rename(columns=rename_map)
-            # [핵심] 3. 번역 후 중복 다시 체크 및 인덱스 초기화
-            temp_df = temp_df.loc[:, ~temp_df.columns.duplicated()].copy()
-            temp_df = temp_df.reset_index(drop=True)
-            all_dfs.append(temp_df)
+            df = pd.read_csv(url)
+            # 중복 제거 및 인덱스 초기화 (InvalidIndexError 원천 차단)
+            df = df.loc[:, ~df.columns.duplicated()].copy()
+            df = df.rename(columns=map_cols)
+            df = df.reset_index(drop=True)
+            dfs.append(df)
         except: continue
     
-    if not all_dfs: return None
+    if not dfs: return None
     
-    # [핵심] 4. 안전한 병합
-    full_df = pd.concat(all_dfs, axis=0, ignore_index=True)
-    
-    # 날짜 및 숫자 정제
+    # 통합 병합
+    full_df = pd.concat(dfs, axis=0, ignore_index=True).reset_index(drop=True)
     full_df['날짜'] = pd.to_datetime(full_df['날짜'], errors='coerce')
-    num_cols = ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']
-    for col in num_cols:
-        if col in full_df.columns:
-            full_df[col] = pd.to_numeric(full_df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
     
+    # 숫자 정제
+    for c in ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']:
+        if c in full_df.columns:
+            full_df[c] = pd.to_numeric(full_df[c].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+    
+    full_df['ROAS'] = (full_df['총 전환매출액(14일)'] / full_df['광고비'] * 100).replace([float('inf')], 0).fillna(0)
     return full_df
 
-df = load_and_clean_data()
+df = load_and_sync_data()
 
 if df is not None:
-    # --- 사이드바: 심플 필터 ---
+    # --- 사이드바: 전문가 프로필 ---
     with st.sidebar:
-        st.title("🏢 KidsTen Dashboard")
-        if '캠페인명' in df.columns:
-            camps = sorted([x for x in df['캠페인명'].unique() if pd.notna(x)])
-            sel_camps = st.multiselect("캠페인 선택", camps, default=camps)
-            f_df = df[df['캠페인명'].isin(sel_camps)]
-        else: f_df = df
+        st.markdown("### 🏢 KidsTen Growth Cockpit")
+        camps = sorted([x for x in df['캠페인명'].unique() if pd.notna(x)])
+        sel_camps = st.multiselect("캠페인 필터링", camps, default=camps)
+        f_df = df[df['캠페인명'].isin(sel_camps)]
         
-        st.divider()
-        st.info(f"**장준영 팀장**\nGrowth Strategy Lead")
+        st.markdown("<br>"*10, unsafe_allow_html=True)
+        st.markdown(f"""
+            <div style="background:white; padding:20px; border-radius:15px; border:1px solid #e2e8f0;">
+                <p style="font-size:12px; color:#64748b; margin:0;">Lead Strategist</p>
+                <p style="font-size:16px; font-weight:800; color:#0f172a; margin:0;">장준영 팀장</p>
+                <p style="font-size:11px; color:#3b82f6; margin:0;">Growth Lead | 18th Year</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # --- 메인 대시보드 (v16.0) ---
-    st.title("🚀 쿠팡 통합 광고 성과 분석")
-    st.markdown("전체 캠페인 성과 및 일별 추이를 분석합니다.")
-    
-    # KPI Grid (Simple & Clean)
+    # --- 메인 헤더 섹션 (HTML 감성 이식) ---
+    st.markdown(f"""
+        <div class="strategy-header">
+            <h1 style="color:white; margin:0;">🚀 KidsTen Ad Intelligence Cockpit</h1>
+            <p style="color:#94a3b8; font-size:18px; margin-top:10px;">
+                현재 <b>{len(f_df):,}건</b>의 광고 데이터를 기반으로 성과를 실시간 분석 중입니다.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # --- 성과 메트릭 (고급 카드 레이아웃) ---
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("💰 총 광고비", f"{f_df['광고비'].sum():,.0f}원")
-    m2.metric("📈 총 매출액", f"{f_df['총 전환매출액(14일)'].sum():,.0f}원")
-    roas = (f_df['총 전환매출액(14일)'].sum() / f_df['광고비'].sum() * 100) if f_df['광고비'].sum() > 0 else 0
-    m3.metric("🎯 평균 ROAS", f"{roas:.1f}%")
-    m4.metric("📊 데이터 수", f"{len(f_df):,}건")
+    with m1:
+        st.markdown(f'<div class="stat-card"><div class="stat-label">💰 누적 집행비</div><div class="stat-value">{f_df["광고비"].sum():,.0f}</div><div class="badge badge-success">Budget Sync OK</div></div>', unsafe_allow_html=True)
+    with m2:
+        st.markdown(f'<div class="stat-card"><div class="stat-label">📈 누적 매출액</div><div class="stat-value">{f_df["총 전환매출액(14일)"].sum():,.0f}</div><div class="badge badge-success">Revenue Sync OK</div></div>', unsafe_allow_html=True)
+    with m3:
+        roas = (f_df['총 전환매출액(14일)'].sum() / f_df['광고비'].sum() * 100) if f_df['광고비'].sum() > 0 else 0
+        status = "✅ 최적" if roas >= 400 else "🚨 관리"
+        b_class = "badge-success" if roas >= 400 else "badge-danger"
+        st.markdown(f'<div class="stat-card"><div class="stat-label">🎯 평균 ROAS</div><div class="stat-value" style="color:#3b82f6;">{roas:.1f}%</div><div class="badge {b_class}">{status}</div></div>', unsafe_allow_html=True)
+    with m4:
+        st.markdown(f'<div class="stat-card"><div class="stat-label">🖱️ 평균 클릭률</div><div class="stat-value">{(f_df["클릭수"].sum()/f_df["노출수"].sum()*100):.2f}%</div><div class="badge badge-success">CTR Monitor</div></div>', unsafe_allow_html=True)
 
-    # 성과 차트 (Professional White Theme)
-    st.subheader("🗓️ 일별 광고비 및 매출 추이")
-    trend = f_df.groupby('날짜')[['광고비', '총 전환매출액(14일)']].sum().reset_index()
-    fig = px.line(trend, x='날짜', y=['광고비', '총 전환매출액(14일)'], 
-                  labels={'value': '금액(원)', 'variable': '항목'},
-                  color_discrete_sequence=['#ef4444', '#1e40af'])
-    fig.update_layout(template='plotly_white', height=450)
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # 데이터 상세 보기
-    st.subheader("📋 통합 성과 상세 데이터")
+    # --- 차트 섹션 (SaaS 감성) ---
+    c_left, c_right = st.columns([7, 3])
+    with c_left:
+        st.subheader("🗓️ 일별 광고비 대비 매출 추이")
+        trend = f_df.groupby('날짜')[['광고비', '총 전환매출액(14일)']].sum().reset_index()
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=trend['날짜'], y=trend['총 전환매출액(14일)'], name='Sales', marker_color='#3b82f6', opacity=0.8))
+        fig.add_trace(go.Scatter(x=trend['날짜'], y=trend['광고비'], name='Spend', line=dict(color='#ef4444', width=3)))
+        fig.update_layout(template='plotly_white', height=450, margin=dict(l=0,r=0,t=20,b=0))
+        st.plotly_chart(fig, use_container_width=True)
+
+    with c_right:
+        st.subheader("🎯 브랜드별 매출 비중")
+        brand_pie = f_df.groupby('캠페인명')['총 전환매출액(14일)'].sum().reset_index()
+        fig_pie = px.pie(brand_pie, values='총 전환매출액(14일)', names='캠페인명', hole=0.6, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_pie.update_layout(showlegend=False, height=450, margin=dict(l=0,r=0,t=0,b=0))
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    # --- 상세 테이블 ---
+    st.subheader("📋 실시간 통합 데이터베이스")
     st.dataframe(f_df.sort_values('날짜', ascending=False), use_container_width=True)
 
 else:
-    st.error("데이터를 로드할 수 없습니다. 시트 주소와 공유 설정을 확인해 주세요.")
+    st.error("데이터 로드 중입니다. 구글 시트 주소와 공유 설정을 다시 확인해 주세요.")
