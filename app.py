@@ -3,127 +3,147 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# 1. SaaS UI/UX 스타일링 (레퍼런스급 디자인 이식)
+# 1. 고도화된 SaaS UI/UX 디자인 (G마켓 산스 및 카드 레이아웃)
 st.set_page_config(page_title="KidsTen Growth Cockpit Pro", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff');
     * { font-family: 'GmarketSansMedium', sans-serif !important; }
-    .main { background-color: #F3F4F6; }
+    .main { background-color: #f1f5f9; }
     
-    /* 레퍼런스 스타일 카드 */
-    .saas-card {
-        background-color: white;
+    /* 카드 디자인 */
+    .dashboard-card {
+        background-color: #ffffff;
         padding: 24px;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-        border: 1px solid #E5E7EB;
-        margin-bottom: 20px;
+        border-radius: 16px;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 24px;
     }
-    .metric-label { color: #6B7280; font-size: 0.9rem; margin-bottom: 8px; }
-    .metric-value { color: #111827; font-size: 1.8rem; font-weight: 800; }
-    .metric-delta { font-size: 0.85rem; font-weight: 600; }
     
-    /* 상단 대시보드 헤더 */
-    .header-container {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    /* 상단 전략 리포트 섹션 */
+    .strategy-container {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 20px;
         margin-bottom: 30px;
+        border-left: 10px solid #3b82f6;
     }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        margin-right: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .badge-red { background-color: #ef4444; color: white; }
+    .badge-yellow { background-color: #fbbf24; color: #1e293b; }
+    .badge-green { background-color: #10b981; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 연동
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv"
+# 2. 멀티 데이터 소스 엔진 (RawData_1 + RawData_2)
+# 팀장님이 주신 시트 ID와 GID를 정확히 매핑했습니다.
+URL_1 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=0"
+URL_2 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=481757610"
 
 @st.cache_data
-def load_data():
+def load_and_merge_data():
     try:
-        df = pd.read_csv(SHEET_URL)
-        df['날짜'] = pd.to_datetime(df['날짜'], format='%Y%m%d')
-        # 수치형 전처리
-        for c in ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']:
-            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-        df['ROAS'] = (df['총 전환매출액(14일)'] / df['광고비'] * 100).replace([float('inf')], 0).fillna(0)
-        return df
-    except: return None
+        # 데이터 로드
+        df1 = pd.read_csv(URL_1)
+        df2 = pd.read_csv(URL_2)
+        
+        # 데이터 통합 (위아래로 붙이기)
+        full_df = pd.concat([df1, df2], ignore_index=True)
+        
+        # 날짜 형식 및 숫자 형식 전처리
+        full_df['날짜'] = pd.to_datetime(full_df['날짜'], format='%Y%m%d', errors='coerce')
+        num_cols = ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']
+        for col in num_cols:
+            if col in full_df.columns:
+                full_df[col] = pd.to_numeric(full_df[col], errors='coerce').fillna(0)
+        
+        # 성과 지표 계산
+        full_df['ROAS'] = (full_df['총 전환매출액(14일)'] / full_df['광고비'] * 100).fillna(0).replace([float('inf')], 0)
+        full_df['CTR'] = (full_df['클릭수'] / full_df['노출수'] * 100).fillna(0)
+        
+        # 성과 상태 분류 (팀장님 요청 로직: 200% 이하는 위험)
+        def classify(row):
+            if row['ROAS'] >= 400: return "✅ 우수"
+            elif row['ROAS'] >= 200: return "🟡 관리"
+            else: return "🚨 위험"
+        full_df['상태'] = full_df.apply(classify, axis=1)
+        
+        return full_df
+    except Exception as e:
+        st.error(f"데이터 로드 오류: {e}")
+        return None
 
-df = load_data()
+df = load_and_merge_data()
 
 if df is not None:
-    # --- 상단 타이틀 섹션 ---
-    st.markdown("""
-        <div class="header-container">
-            <div>
-                <h1 style='margin:0; color:#111827;'>KidsTen Growth Cockpit</h1>
-                <p style='color:#6B7280; margin:0;'>실시간 데이터 기반 전략 의사결정 시스템</p>
-            </div>
+    # --- 사이드바 필터 (복구 완료!) ---
+    st.sidebar.markdown("### 🏢 KidsTen Brand Filter")
+    all_campaigns = sorted(df['캠페인명'].unique().tolist())
+    sel_campaigns = st.sidebar.multiselect("분석할 캠페인을 선택하세요", all_campaigns, default=all_campaigns)
+    
+    # 필터 적용 데이터
+    f_df = df[df['캠페인명'].isin(sel_campaigns)]
+
+    # --- Section 1: 전략 리포트 (상태별 카운트 포함) ---
+    counts = f_df['상태'].value_counts()
+    danger_df = f_df[(f_df['ROAS'] <= 200) & (f_df['광고비'] >= 50000)]
+    
+    st.markdown(f"""
+    <div class="strategy-container">
+        <h2 style='color:white; margin-top:0;'>🛡️ KidsTen Integrated Growth Command</h2>
+        <div style='display: flex; gap: 20px; margin-bottom: 25px;'>
+            <div class="status-badge badge-red">🚨 위험: {counts.get('🚨 위험', 0)}개</div>
+            <div class="status-badge badge-yellow">🟡 관리: {counts.get('🟡 관리', 0)}개</div>
+            <div class="status-badge badge-green">✅ 우수: {counts.get('✅ 우수', 0)}개</div>
         </div>
+        <div style='background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px;'>
+            <h4 style='color:#60a5fa; margin-top:0;'>⚠️ 즉시 조치 필요 키워드 (ROAS 200% 이하 & 5만원 이상)</h4>
+            <p style='font-size:1.1rem; margin:0;'>{', '.join(danger_df['키워드'].unique()[:10]) if not danger_df.empty else '현재 조치 대상이 없습니다.'}</p>
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
-    # --- 실시간 지표 카드 (레퍼런스 스타일 Grid) ---
-    f_df = df # 필터링 로직 생략(전체보기)
-    
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f"""<div class="saas-card">
-            <div class="metric-label">총 광고 집행비</div>
-            <div class="metric-value">{f_df['광고비'].sum():,.0f}원</div>
-            <div class="metric-delta" style="color:#EF4444;">▲ 12.5% vs 전주</div>
-        </div>""", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""<div class="saas-card">
-            <div class="metric-label">총 광고 매출액</div>
-            <div class="metric-value">{f_df['총 전환매출액(14일)'].sum():,.0f}원</div>
-            <div class="metric-delta" style="color:#10B981;">▲ 8.2% vs 전주</div>
-        </div>""", unsafe_allow_html=True)
-    with c3:
-        total_roas = (f_df['총 전환매출액(14일)'].sum()/f_df['광고비'].sum()*100)
-        st.markdown(f"""<div class="saas-card">
-            <div class="metric-label">평균 ROAS</div>
-            <div class="metric-value">{total_roas:.1f}%</div>
-            <div class="metric-delta" style="color:#10B981;">Target 400% 달성중</div>
-        </div>""", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"""<div class="saas-card">
-            <div class="metric-label">광고 건강 점수</div>
-            <div class="metric-value" style="color:#3B82F6;">88 / 100</div>
-            <div class="metric-delta">Good Condition</div>
-        </div>""", unsafe_allow_html=True)
+    # --- Section 2: 핵심 KPI 메트릭 ---
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("💰 통합 광고 집행비", f"{f_df['광고비'].sum():,.0f}원")
+    m2.metric("📈 통합 광고 매출", f"{f_df['총 전환매출액(14일)'].sum():,.0f}원")
+    total_roas = (f_df['총 전환매출액(14일)'].sum() / f_df['광고비'].sum() * 100) if f_df['광고비'].sum() > 0 else 0
+    m3.metric("🎯 평균 ROAS", f"{total_roas:.1f}%", delta=f"{total_roas-400:.1f}% vs 목표")
+    m4.metric("🖱️ 평균 클릭률(CTR)", f"{(f_df['클릭수'].sum()/f_df['노출수'].sum()*100):.2f}%")
 
-    # --- 메인 분석 영역 (2단 레이아웃) ---
-    col_left, col_right = st.columns([7, 3])
-    
-    with col_left:
-        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-        st.subheader("🗓️ 광고 성과 트렌드 분석")
-        trend = f_df.groupby('날짜')[['광고비', '총 전환매출액(14일)']].sum().reset_index()
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=trend['날짜'], y=trend['광고비'], name='Spend', fill='tozeroy', line_color='#FCA5A5'))
-        fig.add_trace(go.Scatter(x=trend['날짜'], y=trend['총 전환매출액(14일)'], name='Sales', line_color='#3B82F6', line_width=4))
-        fig.update_layout(template='none', margin=dict(l=0,r=0,t=20,b=0), height=400)
-        st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_right:
-        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-        st.subheader("🚩 이상 징후 알림")
-        st.error("🚨 **'철분 포도'** CPC 150% 급등!")
-        st.warning("⚠️ **'칼슘업'** 노출량 대비 클릭저조")
-        st.success("✅ **'유산균'** ROAS 800% 돌파")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- 포트폴리오 분석 (버블차트 고도화) ---
-    st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-    st.subheader("🎯 키워드 포트폴리오 밸런스")
+    # --- Section 3: 4분면 분석 그래프 (G마켓 산스 적용) ---
+    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+    st.subheader("🎯 키워드 성과 4분면 분석 (소진액 vs 효율)")
     kw_agg = f_df.groupby('키워드').agg({'광고비':'sum', 'ROAS':'mean', '클릭수':'sum'}).reset_index()
-    fig_bubble = px.scatter(kw_agg[kw_agg['광고비']>5000], x='광고비', y='ROAS', size='클릭수', color='ROAS',
-                            color_continuous_scale='RdYlGn', hover_name='키워드')
-    fig_bubble.update_layout(template='none', height=500)
-    st.plotly_chart(fig_bubble, use_container_width=True)
+    fig = px.scatter(kw_agg[kw_agg['광고비']>1000], x='광고비', y='ROAS', size='광고비', color='ROAS',
+                     hover_name='키워드', color_continuous_scale='RdYlGn',
+                     labels={'광고비':'총 광고비 소진액', 'ROAS':'수익률(ROAS %)'})
+    fig.add_hline(y=400, line_dash="dash", line_color="#10b981", annotation_text="Target")
+    fig.add_hline(y=200, line_dash="dash", line_color="#ef4444", annotation_text="Danger")
+    fig.update_layout(template="plotly_white", height=550)
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- Section 4: 실시간 성과 상세 리스트 ---
+    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+    st.subheader("📋 고도화 성과 분석 리스트")
+    st.dataframe(
+        f_df[['날짜', '상태', '키워드', '광고비', '총 전환매출액(14일)', 'ROAS']].sort_values(by='광고비', ascending=False),
+        use_container_width=True, height=450
+    )
     st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    st.error("데이터를 불러올 수 없습니다.")
+    st.error("데이터 소스를 찾을 수 없습니다. 구글 시트 공유 설정과 GID를 확인해 주세요.")
