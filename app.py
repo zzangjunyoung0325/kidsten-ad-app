@@ -2,24 +2,26 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# 1. UI 설정 (군더더기 없는 화이트/네이비 프로페셔널)
-st.set_page_config(page_title="KidsTen Strategic Unit", layout="wide")
+# 1. 고밀도 프로페셔널 레이아웃 (Netlify 스타일 이식)
+st.set_page_config(page_title="KidsTen Strategic Intelligence", layout="wide")
+
 st.markdown("""
     <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     * { font-family: 'Pretendard', sans-serif !important; }
     .main { background-color: #f8fafc; }
-    .section-title { font-size: 22px; font-weight: 800; color: #1e293b; border-left: 6px solid #2563eb; padding-left: 15px; margin: 30px 0 15px 0; }
-    .status-card { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .section-header { font-size: 20px; font-weight: 800; color: #0f172a; border-left: 6px solid #2563eb; padding-left: 12px; margin: 30px 0 15px 0; }
+    .alert-box { background-color: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 10px; color: #991b1b; }
+    .stDataFrame { border: 1px solid #e2e8f0; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 통합 및 전략 엔진 (InvalidIndexError 완전 해결)
+# 2. 통합 데이터 분석 엔진 (InvalidIndexError 완전 해결)
 URL_1 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=75240363"
 URL_2 = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv&gid=481757610"
 
 @st.cache_data
-def load_strategic_intelligence():
+def load_and_analyze_intelligence():
     map_cols = {
         '캠페인 시작일': '날짜', '캠페인 이름': '캠페인명', 
         '광고비(원)': '광고비', '총 전환 매출액 (14일)(원)': '매출액',
@@ -29,16 +31,19 @@ def load_strategic_intelligence():
     def fetch_and_clean(url):
         try:
             df = pd.read_csv(url)
+            df = df.loc[:, ~df.columns.str.contains('^Unnamed')].copy() # 유령 컬럼 삭제
             df = df.loc[:, ~df.columns.duplicated()].copy() # 중복 컬럼 삭제
             df = df.rename(columns=map_cols)
-            df = df.reset_index(drop=True) # 인덱스 초기화
-            return df
+            # 번역 후 이름이 겹치면(예: 비용/광고비 동시 존재) 첫 번째만 남김
+            df = df.loc[:, ~df.columns.duplicated()].copy()
+            return df.reset_index(drop=True)
         except: return None
 
     d1, d2 = fetch_and_clean(URL_1), fetch_and_clean(URL_2)
     dfs = [d for d in [d1, d2] if d is not None]
     if not dfs: return None
     
+    # 최종 병합 시 인덱스 무시 (Error Zero)
     full_df = pd.concat(dfs, axis=0, ignore_index=True, sort=False).reset_index(drop=True)
     full_df['날짜'] = pd.to_datetime(full_df['날짜'], errors='coerce')
     
@@ -46,72 +51,65 @@ def load_strategic_intelligence():
         if c in full_df.columns:
             full_df[c] = pd.to_numeric(full_df[c].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
             
+    # 지표 계산
     full_df['ROAS'] = (full_df['매출액'] / full_df['광고비'] * 100).replace([np.inf, -np.inf], 0).fillna(0)
     full_df['CVR'] = (full_df['주문수'] / full_df['클릭수'] * 100).replace([np.inf, -np.inf], 0).fillna(0)
     
     return full_df
 
-df = load_strategic_intelligence()
+df = load_and_analyze_intelligence()
 
 if df is not None:
-    # --- 사이드바: 분석 프로필 ---
-    with st.sidebar:
-        st.title("🏢 KidsTen Ops")
-        st.write("**장준영 팀장** | Growth Lead")
-        st.caption("18th Year Strategic Data Unit")
-        st.divider()
-        sel_camps = st.multiselect("캠페인 필터", sorted(df['캠페인명'].unique()), default=df['캠페인명'].unique())
-        f_df = df[df['캠페인명'].isin(sel_camps)]
-
-    # --- 메인 리포트 ---
-    st.markdown('<div class="section-title">🚀 12월 데이터 분석 기반 1월 예산 최적화 리포트</div>', unsafe_allow_html=True)
-    
-    # 1. 1월 전략 제언 (Actionable Insight)
+    # --- 상단 전략 리포트 (분석가 총평) ---
+    st.markdown("# 🛰️ Ad Strategic Intelligence Cockpit")
     st.info(f"""
-    **전략 리포트 요약 (By 장준영 팀장)**
-    - **현황**: 12월 대비 쿠팡 내 경쟁 입찰가가 약 10% 상승함. CVR이 낮은 일반 키워드에서 예산 유실 중.
-    - **1월 조치**: ROAS 250% 미만 키워드는 입찰가를 20% 하향하고, CVR 5% 이상인 효자 품목에 예산의 60%를 집중 투입하여 '이익 극대화'를 노려야 함.
+    **12월 결산 기반 1월 운용 가이드 (장준영 팀장)**
+    1. **이익 방어**: 12월 하순 CPC 급등이 감지됨. CVR 1.5% 미만 키워드들은 즉시 입찰가를 15% 하향하여 소진을 방어하십시오.
+    2. **매출 성장**: CVR 5% 이상인 핵심 품목은 1월 설 기획전 수요에 대비해 예산을 20% 선제적으로 증액하십시오.
     """)
 
-    # 2. 이상 징후 알림 (Anomaly Detection) - 지난주 대비 급락 키워드
-    st.markdown('<div class="section-title">🚨 성과 이상 징후 알림 (WoW Comparison)</div>', unsafe_allow_html=True)
-    max_d = f_df['날짜'].max()
-    curr_week = f_df[f_df['날짜'] > max_d - pd.Timedelta(days=7)]
-    prev_week = f_df[(f_df['날짜'] <= max_d - pd.Timedelta(days=7)) & (f_df['날짜'] > max_d - pd.Timedelta(days=14))]
+    # 1. WoW 성과 이상 징후 (급락 키워드)
+    st.markdown('<div class="section-header">🚨 성과 이상 징후 알림 (지난 7일 vs 이전 7일)</div>', unsafe_allow_html=True)
+    max_d = df['날짜'].max()
+    curr_w = df[df['날짜'] > max_d - pd.Timedelta(days=7)]
+    prev_w = df[(df['날짜'] <= max_d - pd.Timedelta(days=7)) & (df['날짜'] > max_d - pd.Timedelta(days=14))]
     
-    l_sum = curr_week.groupby('키워드').agg({'ROAS':'mean', '광고비':'sum', 'CVR':'mean'}).reset_index()
-    p_sum = prev_week.groupby('키워드').agg({'ROAS':'mean', 'CVR':'mean'}).reset_index()
+    l_sum = curr_w.groupby('키워드').agg({'ROAS':'mean', '광고비':'sum'}).reset_index()
+    p_sum = prev_w.groupby('키워드').agg({'ROAS':'mean'}).reset_index()
     
-    anomaly = pd.merge(l_sum, p_sum, on='키워드', suffixes=('_현재', '_과거'))
-    anomaly['ROAS_변화'] = anomaly['ROAS_현재'] - anomaly['ROAS_과거']
+    diff = pd.merge(l_sum, p_sum, on='키워드', suffixes=('_현재', '_과거'))
+    diff['ROAS_변화'] = diff['ROAS_현재'] - diff['ROAS_과거']
     
-    critical = anomaly[(anomaly['ROAS_변화'] < -50) & (anomaly['광고비'] > 30000)].sort_values('ROAS_변화')
-    st.warning(f"지난주 대비 성과가 급락한 {len(critical)}개의 위험 키워드가 발견되었습니다. (즉시 감액 검토)")
-    st.dataframe(critical[['키워드', 'ROAS_과거', 'ROAS_현재', 'ROAS_변화', '광고비']], use_container_width=True)
+    alerts = diff[(diff['ROAS_변화'] < -50) & (diff['광고비'] > 30000)].sort_values('ROAS_변화')
+    if not alerts.empty:
+        st.error(f"⚠️ 지난주 대비 효율이 급락한 {len(alerts)}개 핵심 키워드를 발견했습니다. (입찰가 하향 검토)")
+        st.dataframe(alerts, use_container_width=True)
+    else:
+        st.success("안전: 급격한 효율 하락을 보이는 키워드가 없습니다.")
 
-    # 3. 키워드별 구매 전환율(CVR) 상세 진단
-    st.markdown('<div class="section-title">🔍 전환 품질(CVR) 분석 및 입찰 조정 대상</div>', unsafe_allow_html=True)
-    kw_agg = f_df.groupby('키워드').agg({'클릭수':'sum', '주문수':'sum', 'CVR':'mean', 'ROAS':'mean', '광고비':'sum'}).reset_index()
+    # 2. CVR 기반 전환 품질 심층 진단
+    st.markdown('<div class="section-header">🔍 키워드 전환 품질(CVR) 분석 Matrix</div>', unsafe_allow_html=True)
+    kw_agg = df.groupby('키워드').agg({'클릭수':'sum', '주문수':'sum', 'CVR':'mean', 'ROAS':'mean', '광고비':'sum'}).reset_index()
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.error("🚫 광고비 도둑 (클릭은 높으나 CVR 1% 미만)")
-        st.dataframe(kw_agg[(kw_agg['CVR'] < 1) & (kw_agg['클릭수'] > 100)].sort_values('광고비', ascending=False), use_container_width=True)
-    with col2:
-        st.success("✨ 고효율 효자 키워드 (CVR 5% 이상)")
-        st.dataframe(kw_agg[kw_agg['CVR'] > 5].sort_values('주문수', ascending=False), use_container_width=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### 🚫 광고비 유실 대상 (CVR 1.5% 미만)")
+        st.dataframe(kw_agg[(kw_agg['CVR'] < 1.5) & (kw_agg['클릭수'] > 100)].sort_values('광고비', ascending=False).head(20), use_container_width=True)
+    with c2:
+        st.markdown("#### ✨ 증액 권장 대상 (CVR 5% 이상)")
+        st.dataframe(kw_agg[kw_agg['CVR'] > 5].sort_values('주문수', ascending=False).head(20), use_container_width=True)
 
-    # 4. 1월 캠페인별 의사결정 전략표
-    st.markdown('<div class="section-title">📋 캠페인별 1월 운용 가이드 (Action Item)</div>', unsafe_allow_html=True)
-    camp_agg = f_df.groupby('캠페인명').agg({'광고비':'sum', '매출액':'sum', 'ROAS':'mean', 'CVR':'mean'}).reset_index()
+    # 3. 1월 캠페인별 의사결정 시트
+    st.markdown('<div class="section-header">📋 캠페인별 1월 운용 전략 제언 (Action Plan)</div>', unsafe_allow_html=True)
+    camp_agg = df.groupby('캠페인명').agg({'광고비':'sum', '매출액':'sum', 'ROAS':'mean', 'CVR':'mean'}).reset_index()
     
-    def get_action(row):
+    def suggest(row):
         if row['ROAS'] >= 400 and row['CVR'] >= 3: return "🚀 공격적 증액 (Scale-up)"
         elif row['ROAS'] < 250: return "⛔ 수익 보호 (감액)"
         else: return "⚖️ 효율 유지 (현상유지)"
         
-    camp_agg['1월 권장 액션'] = camp_agg.apply(get_action, axis=1)
+    camp_agg['1월 권장 액션'] = camp_agg.apply(suggest, axis=1)
     st.dataframe(camp_agg.sort_values('광고비', ascending=False), use_container_width=True)
 
 else:
-    st.error("데이터 로드에 실패했습니다. 구글 시트의 GID와 공유 설정을 확인해주세요.")
+    st.error("데이터 로딩 실패. 시트 공유 설정과 GID를 다시 확인해 주세요.")
