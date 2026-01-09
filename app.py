@@ -6,7 +6,7 @@ import plotly.express as px
 st.set_page_config(page_title="KidsTen Growth Cockpit", layout="wide")
 
 # 2. 데이터 주소 (팀장님의 구글 시트 CSV 주소)
-SHEET_URL = https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv"
 
 @st.cache_data
 def load_data():
