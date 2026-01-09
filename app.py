@@ -2,45 +2,35 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
 
-# 1. 앱 설정 및 SaaS 스타일링 (HTML/CSS 고도화)
-st.set_page_config(page_title="KidsTen Growth Command Center", layout="wide")
+# 1. 전문 SaaS 디자인 설정 (폰트 및 레이아웃)
+st.set_page_config(page_title="KidsTen Growth Intelligence v4", layout="wide")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; }
-    .main { background-color: #F8FAFC; }
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * { font-family: 'Pretendard', sans-serif; }
+    .main { background-color: #f8fafc; }
     
-    /* SaaS 카드 디자인 */
-    .metric-card {
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-        border: 1px solid #E2E8F0;
-    }
-    .strategy-card {
-        background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
+    /* 카드형 UI */
+    .st-emotion-cache-12w0qpk { background-color: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; }
+    
+    /* 상단 전략 섹션 */
+    .strategy-box {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         color: white;
-        padding: 25px;
+        padding: 30px;
         border-radius: 20px;
-        margin-bottom: 25px;
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+        border-left: 8px solid #3b82f6;
     }
-    .alert-badge {
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        background-color: #FEE2E2;
-        color: #B91C1C;
-    }
+    .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; margin-right: 5px; }
+    .badge-red { background-color: #fee2e2; color: #b91c1c; }
+    .badge-green { background-color: #dcfce7; color: #15803d; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 엔진 (매뉴얼 기준 지표 계산)
+# 2. 데이터 연동 (팀장님 전용 주소)
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1R4qwQFQxXxL7NO67c8mr08KXMZvU9qkArNFoPFKYJDU/export?format=csv"
 
 @st.cache_data
@@ -48,14 +38,10 @@ def load_data():
     try:
         df = pd.read_csv(SHEET_URL)
         df['날짜'] = pd.to_datetime(df['날짜'], format='%Y%m%d')
-        # 숫자형 변환 및 결측치 처리
-        cols = ['광고비', '총 전환매출액(14일)', '클릭수', '노출수', '직접 전환매출액(14일)', '간접 전환매출액(14일)']
-        for col in cols:
+        # 숫자형 변환
+        for col in ['광고비', '총 전환매출액(14일)', '클릭수', '노출수']:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-        
-        # 핵심 지표 계산 (사내 기준 적용)
-        df['ROAS'] = (df['총 전환매출액(14일)'] / df['광고비'] * 100).replace([float('inf')], 0).fillna(0)
-        df['CPC'] = (df['광고비'] / df['클릭수']).replace([float('inf')], 0).fillna(0)
+        df['ROAS'] = (df['총 전환매출액(14일)'] / df['광고비'] * 100).fillna(0).replace([float('inf')], 0)
         df['CTR'] = (df['클릭수'] / df['노출수'] * 100).fillna(0)
         return df
     except: return None
@@ -63,85 +49,77 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # --- 사이드바: Growth Leader 전용 필터 ---
-    st.sidebar.markdown("### 🏛️ Command Filter")
-    all_c = df['캠페인명'].unique().tolist()
-    sel_c = st.sidebar.multiselect("캠페인 선택", all_c, default=all_c)
-    f_df = df[df['캠페인명'].isin(sel_c)]
+    # --- 사이드바 및 필터 ---
+    st.sidebar.markdown("### 🔍 Analysis Scope")
+    campaign_list = df['캠페인명'].unique().tolist()
+    sel_campaigns = st.sidebar.multiselect("캠페인 필터", campaign_list, default=campaign_list)
+    f_df = df[df['캠페인명'].isin(sel_campaigns)]
 
-    # --- 상단: 전략적 Insight 섹션 ---
-    st.markdown('<div class="strategy-card">', unsafe_allow_html=True)
-    st.markdown("## 🛰️ Growth Strategy Insight")
-    
-    col_st1, col_st2 = st.columns(2)
-    with col_st1:
-        # 매뉴얼 기반 제외 대상 추천 (5클릭 & 2만원 & ROAS 300% 미만)
-        bad_kws = f_df[(f_df['클릭수'] >= 5) & (f_df['광고비'] >= 20000) & (f_df['ROAS'] < 300)]['키워드'].unique()
-        st.markdown(f"**🚫 사내 기준 비효율 키워드 ({len(bad_kws)}개)**")
-        if len(bad_kws) > 0:
-            st.warning(f"제외 검토: {', '.join(bad_kws[:3])} 등")
-        else: st.success("현재 사내 기준을 벗어난 비효율 키워드가 없습니다.")
-        
-    with col_st2:
-        # CPC 폭등 탐지 (평균 대비 150% 이상)
-        avg_cpc = f_df['CPC'].mean()
-        high_cpc_kw = f_df[f_df['CPC'] > avg_cpc * 1.5].groupby('키워드')['CPC'].mean().sort_values(ascending=False)
-        st.markdown(f"**⚠️ CPC 폭등 주의 (평균: {avg_cpc:,.0f}원)**")
-        if not high_cpc_kw.empty:
-            st.error(f"경고: '{high_cpc_kw.index[0]}' ({high_cpc_kw.values[0]:,.0f}원)")
-        else: st.success("비정상적인 CPC 폭등이 감지되지 않았습니다.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # --- Section 1: 전략 리포트 (핵심 분석 결과) ---
+    st.markdown(f"""
+    <div class="strategy-box">
+        <h2 style='margin-top:0; color:white;'>🚀 KidsTen Ad Strategy Report</h2>
+        <div style='display: flex; gap: 40px;'>
+            <div style='flex: 1;'>
+                <h4 style='color:#60a5fa;'>✅ 핵심 성과 인사이트</h4>
+                <p style='font-size:0.95rem; opacity:0.9;'>
+                    현재 선택된 기간의 평균 ROAS는 <b>{f_df['총 전환매출액(14일)'].sum()/f_df['광고비'].sum()*100:.1f}%</b>입니다.<br>
+                    매출 1위 키워드는 <b>'{f_df.groupby('키워드')['총 전환매출액(14일)'].sum().idxmax()}'</b>이며 전체 매출의 핵심 기여를 하고 있습니다.
+                </p>
+            </div>
+            <div style='flex: 1; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 40px;'>
+                <h4 style='color:#f87171;'>⚠️ 즉시 관리 필요</h4>
+                <p style='font-size:0.95rem; opacity:0.9;'>
+                    ROAS 200% 미만이면서 광고비 5만원 이상 소진된 키워드가 <b>{len(f_df[(f_df['ROAS']<200) & (f_df['광고비']>50000)])}개</b> 발견되었습니다.<br>
+                    해당 키워드들에 대한 입찰가 하향 및 제외 처리를 권장합니다.
+                </p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # --- 메인: KPI 스코어보드 ---
-    k1, k2, k3, k4 = st.columns(4)
-    with k1: st.metric("총 집행 광고비", f"{f_df['광고비'].sum():,.0f}원")
-    with k2: st.metric("총 광고 매출액", f"{f_df['총 전환매출액(14일)'].sum():,.0f}원")
-    with k3: 
-        final_roas = (f_df['총 전환매출액(14일)'].sum() / f_df['광고비'].sum() * 100)
-        st.metric("평균 ROAS", f"{final_roas:.1f}%", delta=f"{final_roas-350:.1f}% (vs Target)")
-    with k4: st.metric("평균 클릭률", f"{(f_df['클릭수'].sum() / f_df['노출수'].sum() * 100):.2f}%")
+    # --- Section 2: 메인 KPI 대시보드 ---
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("💰 총 집행 광고비", f"{f_df['광고비'].sum():,.0f}원")
+    col2.metric("📈 총 광고 매출액", f"{f_df['총 전환매출액(14일)'].sum():,.0f}원")
+    total_roas = (f_df['총 전환매출액(14일)'].sum() / f_df['광고비'].sum() * 100)
+    col3.metric("🎯 평균 ROAS", f"{total_roas:.1f}%", delta=f"{total_roas-400:.1f}% vs 목표")
+    col4.metric("🖱️ 평균 클릭률(CTR)", f"{(f_df['클릭수'].sum()/f_df['노출수'].sum()*100):.2f}%")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 중단: 고차원 분석 차트 ---
-    col_l, col_r = st.columns([7, 3])
+    # --- Section 3: 키워드 포트폴리오 분석 (소진액 vs 효율) ---
+    st.subheader("📊 키워드 포트폴리오 분석 (Portfolio Analysis)")
     
-    with col_l:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.subheader("📊 일별 매출 밸런스 및 직접/간접 전환 비중")
-        # 직접 vs 간접 매출 비중 차트
-        attrib_df = f_df.groupby('날짜')[['직접 전환매출액(14일)', '간접 전환매출액(14일)']].sum().reset_index()
-        fig_attr = px.bar(attrib_df, x='날짜', y=['직접 전환매출액(14일)', '간접 전환매출액(14일)'], 
-                          title="광고 기여도 분석 (직접 vs 간접)", barmode='stack',
-                          color_discrete_sequence=['#003366', '#94A3B8'])
-        st.plotly_chart(fig_attr, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_r:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.subheader("🎯 ROAS 성과 분포")
-        # 캠페인별 ROAS 파이 차트
-        brand_roas = f_df.groupby('캠페인명')['총 전환매출액(14일)'].sum().reset_index()
-        fig_pie = px.pie(brand_roas, values='총 전환매출액(14일)', names='캠페인명', hole=0.6,
-                         color_discrete_sequence=px.colors.qualitative.Pastel)
-        st.plotly_chart(fig_pie, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- 하단: 키워드 4분면 전략 차트 ---
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-    st.subheader("💡 키워드 포트폴리오 분석 (소진액 vs 효율)")
-    scatter_data = f_df.groupby('키워드').agg({'광고비':'sum', 'ROAS':'mean', '클릭수':'sum'}).reset_index()
-    fig_scatter = px.scatter(scatter_data[scatter_data['광고비']>0], x='광고비', y='ROAS', size='클릭수', 
-                             hover_name='키워드', color='ROAS', color_continuous_scale='RdYlGn',
-                             labels={'광고비':'총 광고비', 'ROAS':'평균 ROAS (%)'})
-    fig_scatter.add_hline(y=350, line_dash="dash", line_color="red", annotation_text="목표 ROAS (350%)")
+    kw_agg = f_df.groupby('키워드').agg({'광고비':'sum', 'ROAS':'mean', '클릭수':'sum'}).reset_index()
+    # 버블 차트 구현
+    fig_scatter = px.scatter(kw_agg[kw_agg['광고비'] > 1000], x='광고비', y='ROAS', size='클릭수', color='ROAS',
+                             hover_name='키워드', color_continuous_scale='RdYlGn',
+                             title="광고비 소진액 대비 성과 분포 (Target: 400%)",
+                             labels={'광고비':'총 광고비', 'ROAS':'수익률(ROAS %)'})
+    fig_scatter.add_hline(y=400, line_dash="dash", line_color="red", annotation_text="Target Line")
+    fig_scatter.update_layout(template="plotly_white", height=500)
     st.plotly_chart(fig_scatter, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 상세 테이블 ---
-    st.subheader("📋 실시간 퍼포먼스 데이터베이스")
-    st.dataframe(f_df[['날짜', '캠페인명', '키워드', '노출수', '클릭수', '광고비', '총 전환매출액(14일)', 'ROAS']]
-                 .sort_values(by='날짜', ascending=False), use_container_width=True)
+    # --- Section 4: 실시간 퍼포먼스 데이터베이스 (분석형 리스트) ---
+    st.subheader("📋 고도화 성과 분석 리스트 (Action-Oriented List)")
+    
+    # 성과 구분을 위한 파생 변수 생성
+    def classify_status(row):
+        if row['ROAS'] >= 400: return "✅ 우수"
+        elif row['ROAS'] >= 200: return "🟡 관리"
+        else: return "🚨 위험"
+    
+    f_df['상태'] = f_df.apply(classify_status, axis=1)
+    
+    # 분석된 내용을 포함한 테이블
+    display_df = f_df[['날짜', '상태', '키워드', '노출수', '클릭수', '광고비', '총 전환매출액(14일)', 'ROAS']].sort_values(by='광고비', ascending=False)
+    
+    st.dataframe(display_df, use_container_width=True, height=500, column_config={
+        "ROAS": st.column_config.NumberColumn("ROAS (%)", format="%.1f%%"),
+        "광고비": st.column_config.NumberColumn("소진액", format="%d원"),
+        "총 전환매출액(14일)": st.column_config.NumberColumn("매출액", format="%d원")
+    })
 
 else:
-    st.error("데이터 연결을 확인해주세요. SHEET_URL 주소가 정확한지 확인이 필요합니다.")
+    st.error("데이터 연결을 확인해주세요.")
